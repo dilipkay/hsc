@@ -1,0 +1,170 @@
+function [face, flips, flipsinv] = idt(vertex, face)
+
+% Perform Intrinsic Delaunay Triangulation of a 
+% mesh by edge flipping using the algorithm and formulas
+% given in Fisher et. al's paper: An Algorithm for the Contruction
+% of Intrinsic Delaunay Triangulations with Applications
+% to Digital Geometry Processing
+
+% find all edges in the mesh
+% edge(1,i) and edge(2, i) are the 2 vertices
+% sharing edge i; v2e(a, b) gives the edge index 
+% of (a, b)
+[edge v2e] = compute_edges(face);
+
+% For edge (i, j) e2f(i, j) and e2f(j, i)
+% are the indices of the faces adjacent to edge (i, j)
+v2f = compute_edge_face_ring(face);
+
+% ne = number of edges; nv = number of vertices
+ne = size(edge, 2);
+nv = size(v2f, 1);
+
+% faces listed in a particular order
+f1list = full(v2f(edge(1, :) + (edge(2, :) - 1)*nv));
+% "reverse" ordering
+f2list = full(v2f(edge(2, :) + (edge(1, :) - 1)*nv));
+
+% prune to remove any "weird" edges
+I = find(f1list > 0 & f2list > 0);
+f1list = f1list(I); f2list = f2list(I);
+		        
+% find vertices corresponding to one ordering of the faces
+% f1v and f2v are of size 3 x ne
+f1v = face(:, f1list);
+% and the othe ordering
+f2v = face(:, f2list);
+
+edge = edge(:, I);
+n = length(I);
+
+% find the 3'rd vertex on this face 
+%edge(3, :) = find_other(f2, edge(1,:), edge(2,:));
+% and the 4th vertex
+%edge(4, :) = find_other(f1, edge(1,:), edge(2,:));
+
+% finally, check Delaunay criterion for each edge
+% ic == 0 implis Delaunay is not satisfied so 
+% edge must be flipped; for each edge (i, j)
+% lengths{1:5} contains the lengths of (i, j)
+% and the 4 other edges of the quadrilateral
+
+max_edges = 2*ne;
+stack = zeros(max_edges, 1);
+mark = ones(max_edges, 1);
+stack_top = 1;
+stack_bottom = ne;
+stack(1:stack_bottom) = [1:ne];
+% to avoid repeated allocation, pre-allocate extra space for new edges
+edge = [edge zeros(2, ne)];
+tot_edge = 0;
+num_nd = 0;
+
+% save off the original data
+face_orig = face;
+v2f_orig = v2f;
+v2e_orig = v2e;
+ne_orig = ne;
+edge_orig = edge;
+f1v_orig = f1v;
+f2v_orig = f2v;
+
+while stack_top < stack_bottom
+	% pop an edge from the stack
+	edge_idx = stack(stack_top);
+	stack_top = stack_top + 1;
+	% unmark it
+	mark(edge_idx) = 0;
+	% check for Delaunay
+	a = edge(1, edge_idx);
+	b = edge(2, edge_idx);
+	%c = edge(3, edge_idx);
+	%d = edge(4, edge_idx);
+	c = find_other(f2v(:, edge_idx), a, b);
+	d = find_other(f1v(:, edge_idx), a, b);
+	
+
+	[is_delaunay lens] = check_delaunay(vertex, [a b c d]');
+	tot_edge = tot_edge + 1;
+	if ~is_delaunay
+		num_nd = num_nd + 1;
+
+		% find the index of the 2 faces in the original triangulation
+		flocal1 = v2f(a, b); 
+		flocal2 = v2f(b, a);
+
+		% update with the new vertices (flipped edge)
+		face(:, flocal1) = [c; d; a];
+		face(:, flocal2) = [d; c; b];
+
+		% update v2f - vertex to face mapping
+		% and f1v/f2v - edge to vertex mapping
+		if (v2f(a, d) == flocal2)
+			v2f(a, d) = flocal1;
+			f1v(:, v2e(a, d)) = 
+		else
+			v2f(d, a) = flocal1;
+		end;
+
+		if (v2f(c, b) == flocal1)
+			v2f(c, b) = flocal2;
+		else
+			v2f(b, c) = flocal2;
+		end;
+
+		% add the new edge to the list of edges
+		ne = ne + 1;
+		edge(1, ne) = c;
+		edge(2, ne) = d;
+
+		% add the 2 faces to the faces list
+		f1v(:, ne) = face(:, flocal1);
+		f2v(:, ne) = face(:, flocal2);
+		
+		% remove the dropped edge
+		f1v(:, edge_idx) = 0;
+		f2v(:, edge_idx) = 0;
+		
+		v2e(c, d) = ne;
+		v2e(d, c) = ne;
+if (edge_idx == 1114)
+		fprintf('yes %d %d %d %d\n', a, b, c, d);
+		keyboard;
+	end
+	
+	
+		% push 4 edges onto stack if they're unmarked
+		edge_ids = [v2e(a, c) v2e(c, b) v2e(b, d) v2e(d, a)];
+		for j = 1:length(edge_ids)
+			if ~mark(edge_ids(j))
+				mark(edge_ids(j)) = 1;
+				stack_bottom = stack_bottom + 1;
+				stack(stack_bottom) = edge_ids(j);
+				if (edge_ids(j) == 1114)
+					fprintf('added as neighbor of (%d %d)\n', a, b);
+					keyboard;
+				end;
+			end
+		end;
+	end
+end
+keyboard;
+
+% given a 3 x N vector f, 1 x N vectors i and j, 
+% find the complemetary 1 x N vector k i.e.
+% k = f \ (i U j)
+function k = find_other( f, i,j )
+	n = size(f, 2);
+	idx1 = zeros(3, n);
+	for d = 1:3
+		idx = find(f(d, :)  == i);
+		idx1(d, idx) = 1;
+		idx = find(f(d, :)  == j);
+		idx1(d, idx) = 1;
+	end;
+
+	k = zeros(1, n);
+	for d = 1:3
+		idx = find(idx1(d, :) == 0);
+		k(idx) = f(d, idx);
+	end;

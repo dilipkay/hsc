@@ -27,7 +27,7 @@ int hsc_sparsify(mxArray *A, unsigned geom_info, double *X, double *Y, double *Z
 	mwIndex *A_jcol = mxGetJc(A);
 	double *A_pr = (double *) mxGetPr(A);
 	const mwIndex *dim = mxGetDimensions(A);
-	int n = dim[0];
+	int n = (int) dim[0];
 	unsigned *C_pr = (unsigned *) mxGetPr(C);
 	int divx;
 
@@ -43,12 +43,12 @@ int hsc_sparsify(mxArray *A, unsigned geom_info, double *X, double *Y, double *Z
 	// For 2D grids - set up red-black array
 	if (geom_info == 1) {
 		if ((Level%2) == 0) {
-			divx = pow(2, Level / 2);
+			divx = (int) pow((float) 2.0, Level / 2);
 			for (int i = 0; i < n; i++) {
 				rbarray[i] = ((int)((X[i]/divx - 1) + (Y[i] - 1)/divx))%2;
 			}
 		} else {
-			divx = pow(2, (Level - 1) / 2);
+			divx = (int) pow((float) 2.0, (Level - 1) / 2);
 			for (int i = 0; i < n; i++) {
 				rbarray[i] = 1 - ((int)(X[i]/divx))%2;
 			}
@@ -234,7 +234,10 @@ int hsc_sparsify(mxArray *A, unsigned geom_info, double *X, double *Y, double *Z
 									}
 
 									// Find conductange across each path v1-v2-v3
-									double conductance[num_common][2], tot_cond = 0.0;
+                           if (num_common > 10) {
+                              mexErrMsgTxt("num_common > 10 - not handled! Existing..");  
+                           }
+									double conductance[10][2], tot_cond = 0.0;
 									for (int i = 0; i < num_common; i++) {
 										double w1 = A_pr[idx[i][vidx[0]][vidx[2]]], w2 = A_pr[idx[i][vidx[1]][vidx[2]]];
 										// Rick's formula

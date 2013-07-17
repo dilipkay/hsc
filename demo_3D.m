@@ -8,6 +8,9 @@ addpath(genpath('graph_toolbox'));
 
 % reading is slow for large meshes
 [V F] = read_off('data/lion.off');
+%[V F] = read_off('/misc/vlgscratch1/dilip/Multigrid/mesh/803_neptune_4Mtriangles_manifold.off');
+%[V F] = read_ply('/misc/vlgscratch1/dilip/Multigrid/mesh/xyzrgb_statuette.ply'); V = V'; F = F';
+fprintf('Mesh size %d vertices %d faces\n', size(V, 2), size(F, 2));
 
 % add noise to the mesh 
 nverts = size(V, 2);
@@ -45,24 +48,34 @@ for i = 1:3
     x = pcg(L, V_noisy(i, :)'/t, 1e-6, 100, hsc_fun, []);
     V_denoised(i, :) = x';
 end
-fprintf('Solve time %g\n', etime(clock, t1));
+fprintf('HSC solve time %g\n', etime(clock, t1));
+
+% direct solver time taken
+t1 = clock;
+for i = 1:3
+    x = L\(V_noisy(i, :)'/t);
+    V_denoised(i, :) = x';
+end
+fprintf('Direct solve time %g\n', etime(clock, t1));
 
 % compute condition number
 % slow for large systems as it requires hundreds of iterations
-%fprintf('Computing Condition Number...\n');
-%[c emin emax pc pemin pemax] = compute_cn(L, hsc_fun);
-%fprintf('Original Condition Number %f; preconditioned system %f\n', c, pc);
+if (size(L, 1) < 1e5)
+    fprintf('Computing Condition Number...\n');
+    [c emin emax pc pemin pemax] = compute_cn(L, hsc_fun);
+    fprintf('Original Condition Number %f; preconditioned system %f\n', c, pc);
 
-% plot
-% plotting is very slow for large meshes
-X = V(1, :);
-Y = V(2, :);
-Z = V(3, :);
-X = X - min(X); X = X./max(X);
-Y = Y - min(Y); Y = Y./max(Y);
-Z = Z - min(Z); Z = Z./max(Z);
-[I r g b] = xyzrgb(X, Y, Z);
-opts.face_vertex_color = g'/10;
-figure; plot_mesh(V, F, opts); title('Original mesh'); view([100, 0]);
-figure; plot_mesh(V_noisy, F, opts); title('Noisy Mesh'); view([100, 0]);
-figure; plot_mesh(V_denoised, F, opts); title('Denoised Mesh'); view([100, 0]);
+    % plot
+    % plotting is very slow for large meshes
+    X = V(1, :);
+    Y = V(2, :);
+    Z = V(3, :);
+    X = X - min(X); X = X./max(X);
+    Y = Y - min(Y); Y = Y./max(Y);
+    Z = Z - min(Z); Z = Z./max(Z);
+    [I r g b] = xyzrgb(X, Y, Z);
+    opts.face_vertex_color = g'/10;
+    figure; plot_mesh(V, F, opts); title('Original mesh'); view([100, 0]);
+    figure; plot_mesh(V_noisy, F, opts); title('Noisy Mesh'); view([100, 0]);
+    figure; plot_mesh(V_denoised, F, opts); title('Denoised Mesh'); view([100, 0]);
+end;

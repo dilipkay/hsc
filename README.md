@@ -49,6 +49,9 @@ The parameters of the hierarchy construction are specified in hsc_setup.m. These
 may be modified, for example by adding more smoothing iterations at every level
 of the hierarchy. At present, only V-cycle smoothing is supported.
 
+Note that in the example demo_3D.m we show how cotangent Laplacians may
+be handled by our solver. 
+
 ------------
 Directories:
 ------------

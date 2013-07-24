@@ -4,6 +4,8 @@
 #include <string.h>
 #include "mxGetPropertyPtr.h"
 #include "multilevel.h"
+#include <vector>
+
 using namespace std;
 
 /*
@@ -34,8 +36,10 @@ void gauss_seidel(matrix A, double *invD, double *rhs, double *x, double w, int 
 
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 {
-    int num_levels = (int) MAX(mxGetM(matH), mxGetN(matH));
-    int cycle, jac_pre[num_levels], jac_post[num_levels], diag_precond[num_levels], smooth_all[num_levels], is_laplacian[num_levels];
+    int num_levels = (int) MAX(mxGetM(matH), mxGetN(matH)), cycle;
+    int *jac_pre = new int[num_levels], *jac_post = new int[num_levels];
+    int *diag_precond = new int[num_levels], *smooth_all = new int[num_levels]; 
+    int *is_laplacian = new int[num_levels];
     hier_level *H = (hier_level *) malloc(num_levels * sizeof(hier_level));
 
 	int start_level;
@@ -47,8 +51,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 	start_level -= 1;
 
 	double scale_factor = (double) *mxGetPr(ScaleFactor);
-		
-    
+	
     mxArray *level;
 
     for (int i = start_level; i < num_levels; i++) {
@@ -82,15 +85,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 			H[i].A.irow = (mwIndex *) mxGetIr(tmp);
 			H[i].A.jcol = (mwIndex *) mxGetJc(tmp);
       	} else {
-			/*tmp = mxGetField(level, 0, "cholR");
-			H[i].R.pr = (double *) mxGetPr(tmp);
-			H[i].R.irow = (mwIndex *) mxGetIr(tmp);
-			H[i].R.jcol = (mwIndex *) mxGetJc(tmp);
-			tmp = mxGetField(level, 0, "cholRt");
-			H[i].Rt.pr = (double *) mxGetPr(tmp);
-			H[i].Rt.irow = (mwIndex *) mxGetIr(tmp);
-			H[i].Rt.jcol = (mwIndex *) mxGetJc(tmp);
-			H[i].fine_n = MAX(mxGetM(tmp), mxGetN(tmp));*/
 			tmp = mxGetField(level, 0, "A");
 			H[i].fine_n = MAX(mxGetM(tmp), mxGetN(tmp));
 			H[i].chol.ld.a = (double *) mxGetPr(mxGetField(mxGetField(mxGetField(level , 0, "chol"), 0, "ld"), 0, "a")); 
@@ -127,6 +121,13 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     double *Ax_pr = mxGetPr(matAx);
 
     precond(H, x_pr, Ax_pr, num_levels, cycle, jac_pre, jac_post, diag_precond, smooth_all, mxGetN(matx), start_level, is_laplacian, scale_factor);
+    
+    // clean up
+    delete [] jac_pre;
+    delete [] jac_post;
+    delete [] diag_precond; 
+    delete [] smooth_all; 
+    delete [] is_laplacian;
 }
 
 /* 
@@ -138,7 +139,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 void precond(hier_level *H, double *x, double *Ax, int num_levels, int cycle, int *jac_pre, int *jac_post, int *diag_precond, int *smooth_all, int bands, int start_level, int *is_laplacian, double scale_factor)
 {
 	double omega = 0.8;
-	double *Ae[num_levels];
+	//double *Ae[num_levels];
+   std::vector<double *> Ae(num_levels);
 
 	for (int b = 0; b < bands; b++) {
 		H[start_level].r = &(x[b*H[start_level].fine_n]);
@@ -197,7 +199,9 @@ void precond(hier_level *H, double *x, double *Ax, int num_levels, int cycle, in
 
 
 			if (0) {
-				double acc = 0, tmpv[H[num_levels-1].fine_n], tmpv1[H[num_levels-1].fine_n];
+				double acc = 0;
+                double *tmpv = new double[H[num_levels-1].fine_n];
+                double *tmpv1 = new double[H[num_levels-1].fine_n];
 				mat_vec(H[num_levels-1].A, H[num_levels-1].e, tmpv1, H[num_levels-1].fine_n, H[num_levels-1].fine_n);
 				for (int i=0; i<H[num_levels-1].fine_n; i++) {
 					acc += fabs(tmpv1[i] - H[num_levels-1].r[i]);
@@ -253,6 +257,8 @@ void precond(hier_level *H, double *x, double *Ax, int num_levels, int cycle, in
 			}*/
 		}
 	}
+   // clean up
+   Ae.clear();
 }
 
 /*
@@ -290,8 +296,8 @@ void jacobi_rb(matrix A, double *invD, double *rhs, double *x, double w, int n, 
 				for (int i = 0; i < n; i++) {
 					if (C[i] == 0) {
 						double tmp = 0;
-						for (int k = A.jcol[i]; k < A.jcol[i + 1]; k++) {
-							int row = A.irow[k];
+						for (mwIndex k = A.jcol[i]; k < A.jcol[i + 1]; k++) {
+							mwIndex row = A.irow[k];
 							tmp += A.pr[k]*x[row];
     					}
 						x[i] += (rhs[i] - tmp)*invD[i];
@@ -303,8 +309,8 @@ void jacobi_rb(matrix A, double *invD, double *rhs, double *x, double w, int n, 
 			for (int i = 0; i < n; i++) {
 				if (C[i] == 1) {
 					double tmp = 0;
-					for (int k = A.jcol[i]; k < A.jcol[i + 1]; k++) {
-						int row = A.irow[k];
+					for (mwIndex k = A.jcol[i]; k < A.jcol[i + 1]; k++) {
+						mwIndex row = A.irow[k];
 						tmp += A.pr[k]*x[row];
 					}
 					x[i] += (rhs[i] - tmp)*invD[i];
@@ -316,8 +322,8 @@ void jacobi_rb(matrix A, double *invD, double *rhs, double *x, double w, int n, 
 			for (int i = n - 1; i >= 0; i--) {
 				if (C[i] == 1) {
 					double tmp = 0;
-					for (int k = A.jcol[i]; k < A.jcol[i + 1]; k++) {
-						int row = A.irow[k];
+					for (mwIndex k = A.jcol[i]; k < A.jcol[i + 1]; k++) {
+						mwIndex row = A.irow[k];
 						tmp += A.pr[k]*x[row];
 					}
 					x[i] += (rhs[i] - tmp)*invD[i];
@@ -327,8 +333,8 @@ void jacobi_rb(matrix A, double *invD, double *rhs, double *x, double w, int n, 
 				for (int i = n - 1 ; i >= 0; i--) {
 					if (C[i] == 0) {
 						double tmp = 0;
-						for (int k = A.jcol[i]; k < A.jcol[i + 1]; k++) {
-							int row = A.irow[k];
+						for (mwIndex k = A.jcol[i]; k < A.jcol[i + 1]; k++) {
+							mwIndex row = A.irow[k];
 							tmp += A.pr[k]*x[row];
     					}
 						x[i] += (rhs[i] - tmp)*invD[i];
@@ -353,8 +359,8 @@ void gauss_seidel(matrix A, double *invD, double *rhs, double *x, double w, int 
 			// First one set of points
 			for (int i = 0; i < n; i++) {
 				double tmp = 0;
-				for (int k = A.jcol[i]; k < A.jcol[i + 1]; k++) {
-					int row = A.irow[k];
+				for (mwIndex k = A.jcol[i]; k < A.jcol[i + 1]; k++) {
+					mwIndex row = A.irow[k];
 					tmp += A.pr[k]*x[row];
     			}
 				x[i] += (rhs[i] - tmp)*invD[i];
@@ -364,8 +370,8 @@ void gauss_seidel(matrix A, double *invD, double *rhs, double *x, double w, int 
 		for (int j=0; j<iter; j++) {
 			for (int i = n - 1; i >= 0; i--) {
 				double tmp = 0;
-				for (int k = A.jcol[i]; k < A.jcol[i + 1]; k++) {
-					int row = A.irow[k];
+				for (mwIndex k = A.jcol[i]; k < A.jcol[i + 1]; k++) {
+					mwIndex row = A.irow[k];
 					tmp += A.pr[k]*x[row];
 				}
 				x[i] += (rhs[i] - tmp)*invD[i];
@@ -384,8 +390,8 @@ void mat_vec(matrix A, double *x, double *Ax, int m, int n)
     Ax[i] = 0;
 
   for (int i=0; i<n; i++) {
-    for (int j=A.jcol[i]; j<A.jcol[i+1]; j++) {
-      int row = A.irow[j];
+    for (mwIndex j=A.jcol[i]; j<A.jcol[i+1]; j++) {
+      mwIndex row = A.irow[j];
       Ax[row] += A.pr[j]*x[i];
     }
   }
@@ -401,8 +407,8 @@ void mat_vec_sym(matrix A, double *x, double *Ax, int m, int n)
 	*/
 	for (int i = 0; i < n; i++) {
 		Ax[i] = 0;	
-		for (int j = A.jcol[i]; j < A.jcol[i+1]; j++) {
-			int row = A.irow[j];
+		for (mwIndex j = A.jcol[i]; j < A.jcol[i+1]; j++) {
+			mwIndex row = A.irow[j];
 			Ax[i] += A.pr[j]*x[row];
 		}
 	}
@@ -418,8 +424,8 @@ void residual(matrix A, double *x, double *r, double *Ax, int n)
 	*/
 	for (int i = 0; i < n; i++) {
 		Ax[i] = 0;	
-		for (int j = A.jcol[i]; j < A.jcol[i+1]; j++) {
-			int row = A.irow[j];
+		for (mwIndex j = A.jcol[i]; j < A.jcol[i+1]; j++) {
+			mwIndex row = A.irow[j];
 			Ax[i] += A.pr[j]*x[row];
 		}
 		Ax[i] = r[i] - Ax[i];
@@ -437,8 +443,8 @@ void mat_vec_subset(matrix A, double *x, double *Ax, int n, unsigned int *C, int
 			continue;
 		}
 		Ax[i] = 0;
-		for (int j = A.jcol[i]; j < A.jcol[i + 1]; j++) {
-			int row = A.irow[j];
+		for (mwIndex j = A.jcol[i]; j < A.jcol[i + 1]; j++) {
+			mwIndex row = A.irow[j];
 			Ax[i] += A.pr[j]*x[row];
     }
   }
@@ -452,8 +458,8 @@ void mat_vec_subset(matrix A, double *x, double *Ax, int n, unsigned int *C, int
 void mat_vec_add(matrix A, double *x, double *Ax, int m, int n)
 {
   for (int i=0; i<n; i++) {
-    for (int j=A.jcol[i]; j<A.jcol[i+1]; j++) {
-      int row = A.irow[j];
+    for (mwIndex j=A.jcol[i]; j<A.jcol[i+1]; j++) {
+      mwIndex row = A.irow[j];
       Ax[row] += A.pr[j]*x[i];
     }
   }
@@ -470,7 +476,7 @@ void mat_vec_trans(matrix A, double *x, double *Atx, int m, int n)
 
   for (int i=0; i<n; i++) {
     double val = 0;
-    for (int j=A.jcol[i]; j<A.jcol[i+1]; j++) {
+    for (mwIndex j=A.jcol[i]; j<A.jcol[i+1]; j++) {
       val += A.pr[j]*x[A.irow[j]];
     }
     Atx[i] = val;
@@ -492,7 +498,7 @@ void exact(matrix R, matrix Rt, double *b, double *x, int n)
     // compute sum_{j \ne i} R'(i,j)z_j == sum_{j \ne i} R(j,i)z_j
     // in  the loop assuming that R(i,i) is the last element 
     // of the ith column of R
-    for (int j=R.jcol[i]; j<R.jcol[i+1]-1; j++) {
+    for (mwIndex j=R.jcol[i]; j<R.jcol[i+1]-1; j++) {
       val += R.pr[j]*z[R.irow[j]];
     }
     z[i] = (b[i]-val)/R.pr[R.jcol[i+1]-1];
@@ -504,7 +510,7 @@ void exact(matrix R, matrix Rt, double *b, double *x, int n)
     // compute sum_{j \ne i} R(i,j)z_j == sum_{j \ne i} Rt(j,i)z_j
     // in the loop, assuming that Rt(i,i) is the first element
     // of the i'th column of R'
-    for (int j=Rt.jcol[i]+1; j<Rt.jcol[i+1]; j++) {
+    for (mwIndex j=Rt.jcol[i]+1; j<Rt.jcol[i+1]; j++) {
       val += Rt.pr[j]*x[Rt.irow[j]];
     }
     x[i] = (z[i]-val)/Rt.pr[Rt.jcol[i]];

@@ -58,8 +58,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 	tsp = mxCreateNumericArray(1, dims1, mxDOUBLE_CLASS, mxREAL);
 	double *tsp_pr = (double *) mxGetPr(tsp);
   
-	int rows, cols;
-
 	double *X_pr, *Y_pr, *Z_pr;
 	if (geom_info == 0) {
 		X_pr = NULL;

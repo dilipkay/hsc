@@ -55,8 +55,6 @@ int hsc_sparsify(mxArray *A, unsigned geom_info, double *X, double *Y, double *Z
 		}
 	}
 
-	double w1, w2, w3;
-
 	clock_t tt1, tt2;
 
 	tt1 = clock();
@@ -68,7 +66,7 @@ int hsc_sparsify(mxArray *A, unsigned geom_info, double *X, double *Y, double *Z
 		int ctr = 0;
 		double sum = 0, min_val = 1e15, max_val = 0;
 		edgeratio[i] = 0;
-		for (int j = A_jcol[i]; j < A_jcol[i + 1]; j++) {
+		for (mwIndex j = A_jcol[i]; j < A_jcol[i + 1]; j++) {
 			sum += A_pr[j];
 			if (A_pr[j] < min_val) { 
 				min_val = A_pr[j]; 
@@ -118,10 +116,10 @@ int hsc_sparsify(mxArray *A, unsigned geom_info, double *X, double *Y, double *Z
 					idx[0][1][0] = v1_nei_idx[v2]; // index of A[v1_nei[v2], v1]
 
 					// find common neighbors of v1 and v1_nei[v2]
-					int v1_idx = A_jcol[v1], v2_idx = A_jcol[v1_nei[v2]];
+					mwIndex v1_idx = A_jcol[v1], v2_idx = A_jcol[v1_nei[v2]];
 
 					// index of v1 as a neighbor of v1_nei[v2]
-					for (int i = v2_idx; i < A_jcol[v1_nei[v2] + 1]; i++) {
+					for (int i = v2_idx; i < (int) A_jcol[v1_nei[v2] + 1]; i++) {
 						if (A_irow[i] == v1) {
 							idx[0][0][1] = i; 
 						}
@@ -175,7 +173,6 @@ int hsc_sparsify(mxArray *A, unsigned geom_info, double *X, double *Y, double *Z
 									skip_flag = 1;
 								} else { 
 									// in 2D grid case - set according to global R/B
-									// flag
 									C_pr[vtmp0] = rbarray[vtmp0];
 									C_pr[vtmp1] = rbarray[vtmp1];
 									C_pr[vtmp2] = rbarray[vtmp2];
@@ -198,7 +195,7 @@ int hsc_sparsify(mxArray *A, unsigned geom_info, double *X, double *Y, double *Z
 
 							if (!skip_flag) {
 								// only reach here if there is a triangle to be cut
-								for (int i = A_jcol[v3]; i < A_jcol[v3 + 1]; i++) {
+								for (mwIndex i = A_jcol[v3]; i < A_jcol[v3 + 1]; i++) {
 									if (A_irow[i] == v1) {
 										idx[0][0][2] = i; // index of A[v1, v3]
 									}
@@ -213,13 +210,13 @@ int hsc_sparsify(mxArray *A, unsigned geom_info, double *X, double *Y, double *Z
 									// compensate ALL triangles on this edge
 									int num_common = 1; // # of common neighbors v3
 									//  find the common neighbors
-									for (int i = A_jcol[vtmp0]; i < A_jcol[vtmp0 + 1]; i++) {
-										for (int j = A_jcol[vtmp1]; j < A_jcol[vtmp1 + 1]; j++) {
+									for (mwIndex i = A_jcol[vtmp0]; i < A_jcol[vtmp0 + 1]; i++) {
+										for (mwIndex j = A_jcol[vtmp1]; j < A_jcol[vtmp1 + 1]; j++) {
 											if ((A_irow[i] == A_irow[j]) && (A_irow[i] != vtmp2) && (A_pr[i] > 0) && (A_pr[j] > 0)) {
 												idx[num_common][vidx[2]][vidx[0]] = i; 
 												idx[num_common][vidx[2]][vidx[1]] = j; 
 												int vv = A_irow[i];
-												for (int k = A_jcol[vv]; k < A_jcol[vv+1]; k++) {
+												for (mwIndex k = A_jcol[vv]; k < A_jcol[vv+1]; k++) {
 													if (A_irow[k] == vtmp0) {
 														idx[num_common][vidx[0]][vidx[2]] = k; 
 													} else if (A_irow[k] == vtmp1) {
@@ -292,7 +289,7 @@ int hsc_sparsify(mxArray *A, unsigned geom_info, double *X, double *Y, double *Z
 				} // end of v2 loop	
 
 				// set remaining undecided neighbors to be C
-				for (int i = A_jcol[v1]; i < A_jcol[v1 + 1]; i++) {
+				for (mwIndex i = A_jcol[v1]; i < A_jcol[v1 + 1]; i++) {
 					if (C_pr[A_irow[i]] == 2) {
 						if (A_pr[i] > 0) {
 							C_pr[A_irow[i]] = 1;
@@ -306,7 +303,7 @@ int hsc_sparsify(mxArray *A, unsigned geom_info, double *X, double *Y, double *Z
 	int num_coarse = 0, num_fine = 0, num_undet = 0;
 	for (int i = 0; i < n; i++) {
 		if (C_pr[i] == 2) {
-			for (int j = A_jcol[i]; j < A_jcol[i + 1]; j++) {
+			for (mwIndex j = A_jcol[i]; j < A_jcol[i + 1]; j++) {
 				if ((A_pr[j] > 0) && (C_pr[A_irow[j]] == 0)) {
 					C_pr[i] = 1;
 					break;
@@ -322,7 +319,7 @@ int hsc_sparsify(mxArray *A, unsigned geom_info, double *X, double *Y, double *Z
 	for (int i = 0; i < n; i++) {
 		if (C_pr[i] == 0) {
 			// Ensure that all neighbors of F are C
-			for (int j = A_jcol[i]; j < A_jcol[i + 1]; j++) {
+			for (mwIndex j = A_jcol[i]; j < A_jcol[i + 1]; j++) {
 				if (A_pr[j] > 0) {
 					C_pr[A_irow[j]] = 1;
 				}
@@ -336,7 +333,7 @@ int hsc_sparsify(mxArray *A, unsigned geom_info, double *X, double *Y, double *Z
 	for (int i = 0; i < n; i++) {
 		int fnei = 0;
 		if (C_pr[i] == 1) {
-			for (int j = A_jcol[i]; j < A_jcol[i + 1]; j++) {
+			for (mwIndex j = A_jcol[i]; j < A_jcol[i + 1]; j++) {
 				if ((A_pr[j] > 0) && (C_pr[A_irow[j]] == 0)) {
 					fnei = 1;
 					break;
@@ -370,7 +367,7 @@ int hsc_sparsify(mxArray *A, unsigned geom_info, double *X, double *Y, double *Z
 mxArray *lap_to_adj(mxArray *A_IN, double *excD)
 {
 	mwIndex *B_irow, *B_jcol, *A_jcol, *A_irow;
-    mwIndex i,j, ind, flag;
+    mwIndex i,j, ind;
     mwSize m,n;
     double *B, *A;
            
@@ -418,7 +415,7 @@ mxArray *lap_to_adj(mxArray *A_IN, double *excD)
 void find_nei_adj(mwIndex *A_irow, mwIndex *A_jcol, double *A_pr, int row, int * nei, int& count, int *A_irow_idx) 
 {   
     count = 0;
-	for (int i = A_jcol[row]; i < A_jcol[row+1]; i++) {
+	for (mwIndex i = A_jcol[row]; i < A_jcol[row+1]; i++) {
 		int v = A_irow[i];
 		if (A_pr[i] > 0) {
 			nei[count] = v;

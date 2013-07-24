@@ -8,8 +8,6 @@ addpath(genpath('graph_toolbox'));
 
 % reading is slow for large meshes
 [V F] = read_off('data/lion.off');
-%[V F] = read_off('/misc/vlgscratch1/dilip/Multigrid/mesh/803_neptune_4Mtriangles_manifold.off');
-%[V F] = read_ply('/misc/vlgscratch1/dilip/Multigrid/mesh/xyzrgb_statuette.ply'); V = V'; F = F';
 fprintf('Mesh size %d vertices %d faces\n', size(V, 2), size(F, 2));
 
 % add noise to the mesh 

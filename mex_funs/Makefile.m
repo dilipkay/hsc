@@ -1,10 +1,9 @@
 % create mex files
 objtocreate = {'hsc_calc_prolong', 'mxGetPropertyPtr', 'hsc_sparsify', 'ldl_solve'};
 objstr = ' ';
-objext = '.o';
+objext = 'o';
 % figure out if this is Windows
-[status, result] = system('set OS');
-if (~status && strcmp(result, 'Windows_NT') == 0)
+if ispc 
     objext = 'obj';
 end
 for k=1:length(objtocreate)

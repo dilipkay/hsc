@@ -50,11 +50,29 @@ fprintf('HSC solve time %g\n', etime(clock, t1));
 
 % direct solver time taken
 t1 = clock;
-for i = 1:3
-    x = L\(V_noisy(i, :)'/t);
-    V_denoised(i, :) = x';
-end
-fprintf('Direct solve time %g\n', etime(clock, t1));
+if (0)
+   % use backslash
+   for i = 1:3
+      x = L\(V_noisy(i, :)'/t);
+      V_denoised(i, :) = x';
+   end
+   fprintf('Direct solve time %g\n', etime(clock, t1));
+else
+   % use Cholesky - probably faster than direct solver for 
+   % small meshes but quickly becomes much slower
+   Chol = [];
+   [Chol.L p Chol.S] = chol(L, 'lower');
+   Chol.U = Chol.L';
+   Chol.P = Chol.S';
+   Chol.Q = Chol.S;
+   fprintf('Cholesky Setup time %g\n', etime(clock, t1));
+   t2 = clock;
+   for i = 1:3
+      x = Chol.Q * (Chol.U \ (Chol.L \ (Chol.P * (V_noisy(i, :)'/t))));
+      V_denoised(i, :) = x';
+   end;
+   fprintf('Cholesky solve time %g\n', etime(clock, t2));
+end;
 
 % compute condition number
 % slow for large systems as it requires hundreds of iterations
